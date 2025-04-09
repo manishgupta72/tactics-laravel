@@ -1,0 +1,59 @@
+:root [data-sidebar=colored], [data-bs-theme=light] [data-sidebar=colored]
+{
+    --bs-sidebar-colored-bg: #042B48;
+    --bs-sidebar-colored-menu-item-color: #ffffff;
+    --bs-sidebar-colored-menu-sub-item-color: #ffffff;
+    --bs-sidebar-colored-menu-item-icon-color: #ffffff;
+    --bs-sidebar-colored-menu-item-hover-color: #fff;
+    --bs-sidebar-colored-menu-item-active-color: #fff;
+    --bs-sidebar-colored-menu-item-active-bg: #043a64;
+}
+
+/* --------------------------------------
+  All error list design after click submit
+  ----------------------------------------- */
+  .submit-error {
+    display: block;
+    border: solid 1px #e85347;
+    background: #fce9e7;
+    padding: 13px;
+    border-radius: 4px;
+    /* list-style: disc !important;
+    list-style-type: disc !important;
+    list-style-position : inside !important; */
+    margin: 0 auto;
+  }
+  .submit-error li {
+    padding: 4px 0 4px 15px;
+    color: #e85347;
+    position: relative;
+    text-align: left;
+    /* display: flex;
+    align-items: center; */
+  }
+  .submit-error li:before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #e85347;
+    /* margin-right: 10px; */
+    position: absolute;
+    top: 10px;
+    left: 0;
+  }
+
+  body.modal-open,
+body.offcanvas-open {
+  overflow: hidden;
+}
+.div-right-align{
+  display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+.div-left-align{
+  display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
