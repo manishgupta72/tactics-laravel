@@ -37,7 +37,7 @@ class EmployeeController extends Controller
 
     public function importExcel(Request $request)
     {
-        ini_set('max_execution_time', 180); // Extend timeout for large files
+        ini_set('max_execution_time', 180);  // Extend timeout for large files
 
         $request->validate([
             'employee_excel' => 'required|file|mimes:xlsx,xls',
@@ -83,8 +83,8 @@ class EmployeeController extends Controller
                 ]);
 
                 $inserted[] = [
-                    'emp_code'   => $emp_code,
-                    'full_name'  => $fullname,
+                    'emp_code'  => $emp_code,
+                    'full_name' => $fullname,
                 ];
             }
 
@@ -92,7 +92,7 @@ class EmployeeController extends Controller
 
             // Create export Excel with emp_code and name
             $exportSheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-            $sheet = $exportSheet->getActiveSheet();
+            $sheet       = $exportSheet->getActiveSheet();
             $sheet->setCellValue('A1', 'Employee Code');
             $sheet->setCellValue('B1', 'Employee Name');
 
@@ -191,8 +191,13 @@ class EmployeeController extends Controller
             switch ($type) {
                 case 'basic':
                     $exists = DB::table('basic_employee')->where('emp_id', $emp_id)->exists();
+                    if ($exists) {
+                        $skipped++;
+                        continue 2;
+                    }
 
                     $data = [
+                        'emp_id'                     => $emp_id,
                         'father_husband_name'        => $row[1] ?? null,
                         'father_husband_dob'         => $row[2] ?? null,
                         'mother_name'                => $row[3] ?? null,
@@ -218,73 +223,70 @@ class EmployeeController extends Controller
                         'first_child_dob'            => $row[23] ?? null,
                         'second_child_name'          => $row[24] ?? null,
                         'second_child_dob'           => $row[25] ?? null,
+                        'status'                     => collect(array_slice($row, 1, 25))->filter()->count() === 25 ? 1 : 0,
+                        'created_at'                 => now(),
                         'updated_at'                 => now(),
-                        'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
+                        'addedon'                    => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                     ];
 
-                    if ($exists) {
-                        DB::table('basic_employee')->where('emp_id', $emp_id)->update($data);
-                        $skipped++;
-                    } else {
-                        $data['emp_id']     = $emp_id;
-                        $data['created_at'] = now();
-                        DB::table('basic_employee')->insert($data);
-                        $inserted++;
-                    }
+                    DB::table('basic_employee')->insert($data);
+                    $inserted++;
                     break;
 
                 case 'bank':
                     $exists = DB::table('bank_employee')->where('emp_id', $emp_id)->exists();
+                    if ($exists) {
+                        $skipped++;
+                        continue 2;
+                    }
 
                     $data = [
+                        'emp_id'            => $emp_id,
                         'emp_bank_fullname' => $row[1] ?? null,
                         'emp_bank_name'     => $row[2] ?? null,
                         'emp_account_no'    => $row[3] ?? null,
                         'emp_ifsc_code'     => $row[4] ?? null,
                         'emp_branch'        => $row[5] ?? null,
-                        'emp_bank_status'   => $row[6] ?? 1,
+                        'emp_bank_status'   => collect(array_slice($row, 1, 5))->filter()->count() === 5 ? 1 : 0,
+                        'created_at'        => now(),
                         'updated_at'        => now(),
-                        'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
+                        'addedon'           => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                     ];
 
-                    if ($exists) {
-                        DB::table('bank_employee')->where('emp_id', $emp_id)->update($data);
-                        $skipped++;
-                    } else {
-                        $data['emp_id']     = $emp_id;
-                        $data['created_at'] = now();
-                        DB::table('bank_employee')->insert($data);
-                        $inserted++;
-                    }
+                    DB::table('bank_employee')->insert($data);
+                    $inserted++;
                     break;
 
                 case 'pfesic':
                     $exists = DB::table('pf_esic_employee')->where('emp_id', $emp_id)->exists();
+                    if ($exists) {
+                        $skipped++;
+                        continue 2;
+                    }
 
                     $data = [
+                        'emp_id'         => $emp_id,
                         'emp_PF_no'      => $row[1] ?? null,
                         'emp_ESIC_no'    => $row[2] ?? null,
                         'emp_esic_State' => $row[3] ?? null,
-                        'emp_pf_status'  => 1,
+                        'emp_pf_status'  => (
+                            (!empty($row[1]) || !empty($row[2])) && !empty($row[3])
+                        ) ? 1 : 0,
+                        'created_at'     => now(),
                         'updated_at'     => now(),
                         'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                     ];
 
-                    if ($exists) {
-                        DB::table('pf_esic_employee')->where('emp_id', $emp_id)->update($data);
-                        $skipped++;
-                    } else {
-                        $data['emp_id']     = $emp_id;
-                        $data['created_at'] = now();
-                        DB::table('pf_esic_employee')->insert($data);
-                        $inserted++;
-                    }
+                    DB::table('pf_esic_employee')->insert($data);
+                    $inserted++;
                     break;
             }
         }
 
         return back()->with('upload_summary', "Inserted: $inserted, Skipped: $skipped");
     }
+
+
 
 
 
@@ -505,18 +507,22 @@ class EmployeeController extends Controller
                 if ($req->post('is_date_search')) {
                     $columns = ['emp_code', 'emp_mobile', 'emp_aadhar', 'emp_status', 'addedon'];
                     $Query   = "SELECT
-                            me.emp_id,
-                            me.full_name,
-                            me.emp_code,
-                            me.emp_mobile,
-                            me.emp_aadhar,
-                            me.emp_status,
-                            me.addedon,
-                            (SELECT COUNT(*) FROM basic_employee be WHERE be.emp_id = me.emp_id) AS basic_completed,
-                            (SELECT COUNT(*) FROM pf_esic_employee pf WHERE pf.emp_id = me.emp_id) AS pf_completed,
-                            (SELECT COUNT(*) FROM bank_employee b WHERE b.emp_id = me.emp_id) AS bank_completed,
-                            (SELECT COUNT(*) FROM document_employee de WHERE de.emp_id = me.emp_id) AS document_completed
-                        FROM master_employee me WHERE 1=1";
+                                    me.emp_id,
+                                    me.full_name,
+                                    me.emp_code,
+                                    me.emp_mobile,
+                                    me.emp_aadhar,
+                                    me.emp_status,
+                                    me.addedon,
+                                    be.status AS basic_status,
+                                    pf.emp_pf_status AS pf_status,
+                                    b.emp_bank_status AS bank_status,
+                                    (SELECT COUNT(*) FROM document_employee de WHERE de.emp_id = me.emp_id) AS document_completed
+                                FROM master_employee me
+                                LEFT JOIN basic_employee be ON be.emp_id = me.emp_id
+                                LEFT JOIN pf_esic_employee pf ON pf.emp_id = me.emp_id
+                                LEFT JOIN bank_employee b ON b.emp_id = me.emp_id
+                                WHERE 1=1";
                     $Q = [];
 
                     if ($req->post('search')["value"] && !empty($req->post('search')["value"])) {
@@ -553,24 +559,24 @@ class EmployeeController extends Controller
                             $sub_array[] = '<a href="' . route('employee.details', ['emp_id' => $row->emp_id]) . '">' . $row->full_name . ' (' . $row->emp_code . ')</a>';
 
                             // Basic Status
-                            $sub_array[] = $row->basic_completed > 0
+                            $sub_array[] = $row->basic_status == 1
                                 ? "<span class='badge rounded-pill font-size-12 text-bg-success'>Completed</span>"
-                                :     "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
+                                : "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
 
                             // PF/ESIC Status
-                            $sub_array[] = $row->pf_completed > 0
+                            $sub_array[] = $row->pf_status == 1
                                 ? "<span class='badge rounded-pill font-size-12 text-bg-success'>Completed</span>"
-                                :     "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
+                                : "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
 
                             // Bank Status
-                            $sub_array[] = $row->bank_completed > 0
+                            $sub_array[] = $row->bank_status == 1
                                 ? "<span class='badge rounded-pill font-size-12 text-bg-success'>Completed</span>"
-                                :     "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
+                                : "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
 
-                            // Document Status
+                            // Document Status (still using count logic)
                             $sub_array[] = $row->document_completed > 0
                                 ? "<span class='badge rounded-pill font-size-12 text-bg-success'>Completed</span>"
-                                :     "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
+                                : "<span class='badge rounded-pill font-size-12 text-bg-danger'>Pending</span>";
 
                             $sub_array[] = $row->emp_status > 0 && !empty($row->emp_status) ? config('constant.STATUS')[$row->emp_status] : "Inactive";
 
@@ -789,236 +795,91 @@ class EmployeeController extends Controller
         $msgclass  = '';
         $TargetURL = '';
 
-        $emp_id                     = $request->input('emp_id');
-        $id                         = $request->input('id');
-        $father_husband_name        = $request->input('father_husband_name');
-        $father_husband_dob         = $request->input('father_husband_dob');
-        $mother_name                = $request->input('mother_name');
-        $mother_dob                 = $request->input('mother_dob');
-        $emergency_contact_no       = $request->input('emergency_contact_no');
-        $emergency_contact_relation = $request->input('emergency_contact_relation');
-        $email                      = $request->input('email');
-        $gender                     = $request->input('gender');
-        $dob                        = $request->input('dob');
-        $age                        = $request->input('age');
-        $date_of_joining            = $request->input('date_of_joining');
-        $designation                = $request->input('designation');
-        $nth_pm                     = $request->input('nth_pm');
-        $pan_card_no                = $request->input('pan_card_no');
-        $address_as_per_aadhar      = $request->input('address_as_per_aadhar');
-        $present_address            = $request->input('present_address');
-        $nominee_name               = $request->input('nominee_name');
-        $company_emp_code           = $request->input('company_emp_code');
-        $marital_status             = $request->input('marital_status');
-        $religion                   = $request->input('religion');
-        $spouse_name                = $request->input('spouse_name');
-        $spouse_dob                 = $request->input('spouse_dob');
-        $first_child_name           = $request->input('first_child_name');
-        $first_child_dob            = $request->input('first_child_dob');
-        $second_child_name          = $request->input('second_child_name');
-        $second_child_dob           = $request->input('second_child_dob');
-
-
-
         if ($request->ajax() && $request->isMethod('post')) {
-            // Validation
-            $validator = Validator::make(
-                $request->all(),
-                [
-                    'emp_id' => 'required|exists:master_employee,emp_id',
-
-                    'father_husband_name'        => 'required|string',
-                    'emergency_contact_no'       => 'required|string|max:15',
-                    'emergency_contact_relation' => 'required|string|max:50',
-                    'email'                      => 'required|email|max:255',
-                    'gender'                     => 'required|string|in:Male,Female,Other',
-                    'dob'                        => 'required|date',
-                    'age'                        => 'nullable|integer|min:0|max:120',
-                    'date_of_joining'            => 'required|date',
-                    'designation'                => 'required|string|max:255',
-                    'nth_pm'                     => 'nullable|string|max:255',
-                    'pan_card_no'                => [
-                        'required',
-                        'string',
-                        'max:10',
-                        function ($attribute, $value, $fail) {
-                            if (!preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', $value)) {
-                                $fail('The PAN card number is invalid.');
-                            }
-                        },
-                    ],
-                    'address_as_per_aadhar' => 'nullable|string|max:255',
-                    'present_address'       => 'nullable|string|max:255',
-                    'nominee_name'          => 'nullable|string|max:255',
-                    'marital_status'        => 'nullable|string',
-                    'religion'              => 'nullable|string|max:50',
-                    'spouse_name'           => 'nullable|string|max:255',
-                    'spouse_dob'            => 'nullable|date',
-                    'first_child_name'      => 'nullable|string|max:255',
-                    'first_child_dob'       => 'nullable|date',
-                    'second_child_name'     => 'nullable|string|max:255',
-                    'second_child_dob'      => 'nullable|date',
+            $validator = Validator::make($request->all(), [
+                'emp_id'                     => 'required|exists:master_employee,emp_id',
+                'father_husband_name'        => 'required|string|max:255',
+                'emergency_contact_no'       => 'required|string|max:15',
+                'emergency_contact_relation' => 'required|string|max:50',
+                'email'                      => 'required|email|max:255',
+                'gender'                     => 'required|in:Male,Female,Other',
+                'dob'                        => 'required|date',
+                'age'                        => 'nullable|integer|min:0|max:120',
+                'date_of_joining'            => 'required|date',
+                'designation'                => 'required|string|max:255',
+                'nth_pm'                     => 'nullable|string|max:255',
+                'pan_card_no'                => [
+                    'required',
+                    'string',
+                    'max:10',
+                    function ($attribute, $value, $fail) {
+                        if (!preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', $value)) {
+                            $fail('The PAN card number is invalid (e.g. ABCDE1234F).');
+                        }
+                    },
                 ],
-                [
-                    // Employee ID
-                    'emp_id.required' => 'Employee ID is required.',
-                    'emp_id.exists'   => 'The Employee ID does not exist.',
-
-                    'father_husband_name.required' => 'Father/Husband Name is required.',
-                    // Emergency Contact Number
-                    'emergency_contact_no.required' => 'Emergency contact number is required.',
-                    'emergency_contact_no.number'   => 'Emergency contact number must be a valid string.',
-                    'emergency_contact_no.max'      => 'Emergency contact number cannot exceed 15 characters.',
-
-                    // Emergency Contact Relation
-                    'emergency_contact_relation.required' => 'Emergency contact relation is required.',
-                    'emergency_contact_relation.string'   => 'Emergency contact relation must be a valid string.',
-                    'emergency_contact_relation.max'      => 'Emergency contact relation cannot exceed 50 characters.',
-
-                    // Email
-                    'email.required' => 'Email is required.',
-                    'email.email'    => 'Email must be a valid email address.',
-                    'email.max'      => 'Email cannot exceed 255 characters.',
-
-                    // Gender
-                    'gender.required' => 'Gender is required.',
-
-
-
-                    // Date of Birth
-                    'dob.required' => 'Date of birth is required.',
-
-
-                    // Age
-                    'age.integer' => 'Age must be a valid number.',
-                    'age.min'     => 'Age cannot be less than 0.',
-                    'age.max'     => 'Age cannot exceed 100.',
-
-                    // Date of Joining
-                    'date_of_joining.required' => 'Date of joining is required.',
-
-
-                    // Designation
-                    'designation.required' => 'Designation is required.',
-                    'designation.string'   => 'Designation must be a valid string.',
-                    'designation.max'      => 'Designation cannot exceed 255 characters.',
-
-                    // // NTH/PM
-                    // 'nth_pm.string' => 'NTH/PM must be a valid string.',
-                    // 'nth_pm.max' => 'NTH/PM cannot exceed 255 characters.',
-
-                    // PAN Card Number
-                    'pan_card_no.required' => 'PAN card number is required.',
-                    'pan_card_no.string'   => 'PAN card number must be a valid string.',
-                    'pan_card_no.max'      => 'PAN card number cannot exceed 10 characters.',
-                    'pan_card_no.regex'    => 'The PAN card number must follow the format XXXXX0000X.',
-
-                    // // Address as per Aadhar
-                    // 'address_as_per_aadhar.string' => 'Address as per Aadhar must be a valid string.',
-                    // 'address_as_per_aadhar.max' => 'Address as per Aadhar cannot exceed 255 characters.',
-
-                    // // Present Address
-                    // 'present_address.string' => 'Present address must be a valid string.',
-                    // 'present_address.max' => 'Present address cannot exceed 255 characters.',
-
-                    // // Nominee Name
-                    // 'nominee_name.string' => 'Nominee name must be a valid string.',
-                    // 'nominee_name.max' => 'Nominee name cannot exceed 255 characters.',
-
-                    // // Marital Status
-                    // 'marital_status.string' => 'Marital status must be a valid string.',
-                    // 'marital_status.in' => 'Marital status must be Single or Married.',
-
-                    // // Religion
-                    // 'religion.string' => 'Religion must be a valid string.',
-                    // 'religion.max' => 'Religion cannot exceed 50 characters.',
-
-                    // // Spouse Name
-                    // 'spouse_name.string' => 'Spouse name must be a valid string.',
-                    // 'spouse_name.max' => 'Spouse name cannot exceed 255 characters.',
-
-                    // // Spouse DOB
-                    // 'spouse_dob.date' => 'Spouse date of birth must be a valid date.',
-
-                    // // First Child Name
-                    // 'first_child_name.string' => 'First child name must be a valid string.',
-                    // 'first_child_name.max' => 'First child name cannot exceed 255 characters.',
-
-                    // // First Child DOB
-                    // 'first_child_dob.date' => 'First child date of birth must be a valid date.',
-
-                    // // Second Child Name
-                    // 'second_child_name.string' => 'Second child name must be a valid string.',
-                    // 'second_child_name.max' => 'Second child name cannot exceed 255 characters.',
-
-                    // // Second Child DOB
-                    // 'second_child_dob.date' => 'Second child date of birth must be a valid date.',
-                ]
-
-            );
+                'spouse_dob'       => 'nullable|date',
+                'first_child_dob'  => 'nullable|date',
+                'second_child_dob' => 'nullable|date',
+            ]);
 
             if ($validator->fails()) {
                 return response()->json(['msg' => $validator->errors()->all()], 422);
             }
 
             try {
-                // Check if `father_husband_name` exists in the database
-                $existingRecord = EmployeeBasicDetails::where('emp_id', $emp_id)
-                    ->where('id', $id)
-                    ->first();
-
                 $data = [
-                    'emp_id'                     => $emp_id,
-                    'father_husband_name'        => $father_husband_name,
-                    'father_husband_dob'         => $father_husband_dob,
-                    'mother_name'                => $mother_name,
-                    'mother_dob'                 => $mother_dob,
-                    'emergency_contact_no'       => $emergency_contact_no,
-                    'emergency_contact_relation' => $emergency_contact_relation,
-                    'email'                      => $email,
-                    'gender'                     => $gender,
-                    'dob'                        => $dob,
-                    'age'                        => $age,
-                    'date_of_joining'            => $date_of_joining,
-                    'designation'                => $designation,
-                    'nth_pm'                     => $nth_pm,
-                    'pan_card_no'                => $pan_card_no,
-                    'address_as_per_aadhar'      => $address_as_per_aadhar,
-                    'present_address'            => $present_address,
-                    'nominee_name'               => $nominee_name,
-                    'company_emp_code'           => $company_emp_code,
-                    'marital_status'             => $marital_status,
-                    'religion'                   => $religion,
-                    'spouse_name'                => $spouse_name,
-                    'spouse_dob'                 => $spouse_dob,
-                    'first_child_name'           => $first_child_name,
-                    'first_child_dob'            => $first_child_dob,
-                    'second_child_name'          => $second_child_name,
-                    'second_child_dob'           => $second_child_dob,
+                    'emp_id'                     => $request->emp_id,
+                    'father_husband_name'        => $request->father_husband_name,
+                    'father_husband_dob'         => $request->father_husband_dob,
+                    'mother_name'                => $request->mother_name,
+                    'mother_dob'                 => $request->mother_dob,
+                    'emergency_contact_no'       => $request->emergency_contact_no,
+                    'emergency_contact_relation' => $request->emergency_contact_relation,
+                    'email'                      => $request->email,
+                    'gender'                     => $request->gender,
+                    'dob'                        => $request->dob,
+                    'age'                        => $request->age,
+                    'date_of_joining'            => $request->date_of_joining,
+                    'designation'                => $request->designation,
+                    'nth_pm'                     => $request->nth_pm,
+                    'pan_card_no'                => $request->pan_card_no,
+                    'address_as_per_aadhar'      => $request->address_as_per_aadhar,
+                    'present_address'            => $request->present_address,
+                    'nominee_name'               => $request->nominee_name,
+                    'marital_status'             => $request->marital_status,
+                    'religion'                   => $request->religion,
+                    'spouse_name'                => $request->spouse_name,
+                    'spouse_dob'                 => $request->spouse_dob,
+                    'first_child_name'           => $request->first_child_name,
+                    'first_child_dob'            => $request->first_child_dob,
+                    'second_child_name'          => $request->second_child_name,
+                    'second_child_dob'           => $request->second_child_dob,
                     'updatedon'                  => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'],
                     'updated_at'                 => now(),
                 ];
 
-                if ($existingRecord) {
-                    // Update existing record
-                    $existingRecord = DB::table('basic_employee')->where('emp_id', $emp_id)->update($data);;
-                    $msg            = 'Basic details updated successfully.';
-                    $msgclass       = 'bg-success';
+                // Determine if all fields (except emp_id, timestamps) are filled
+                $statusCheckFields = collect($data)->except(['emp_id', 'updatedon', 'updated_at']);
+                $data['status']    = $statusCheckFields->every(function ($value) {
+                    return !is_null($value) && $value !== '';
+                }) ? 1 : 0;
+
+                $exists = DB::table('basic_employee')->where('emp_id', $request->emp_id)->exists();
+
+                if ($exists) {
+                    DB::table('basic_employee')->where('emp_id', $request->emp_id)->update($data);
+                    $msg = 'Basic details updated successfully.';
                 } else {
-                    // Create new record
                     $data['created_at'] = now();
                     $data['addedon']    = Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'];
-
                     DB::table('basic_employee')->insert($data);
-
-
-                    $msg      = 'Basic details saved successfully.';
-                    $msgclass = 'bg-success';
+                    $msg = 'Basic details saved successfully.';
                 }
+
+                $msgclass = 'bg-success';
             } catch (\Exception $e) {
-                \Log::error('Error in saveBasicDetails: ' . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString(),
-                ]);
+                \Log::error('Error in saveBasicDetails: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
                 $msg      = 'An unexpected error occurred. Please try again later.';
                 $msgclass = 'bg-danger';
             }
@@ -1030,9 +891,10 @@ class EmployeeController extends Controller
         return response()->json([
             'msg'       => $msg,
             'msgsuc'    => $msgclass,
-            'TargetURL' => '',
+            'TargetURL' => $TargetURL,
         ]);
     }
+
 
     // Route: save-bank-details -> employee.save.bank
     public function saveBankDetails(Request $request)
@@ -1045,52 +907,52 @@ class EmployeeController extends Controller
                 $request->all(),
                 [
                     'emp_id'            => 'required|exists:master_employee,emp_id',
-                    'emp_bank_fullname' => 'required|string|max:255',
-                    'emp_bank_name'     => 'required|string|max:255',
+                    'emp_bank_fullname' => 'nullable|string|max:255',
+                    'emp_bank_name'     => 'nullable|string|max:255',
                     'emp_account_no'    => [
-                        'required',
+                        'nullable',
                         'string',
                         'max:20',
                         'regex:/^\d{9,20}$/',
                         function ($attribute, $value, $fail) use ($request) {
-                            $exists = DB::table('bank_employee')
-                                ->where('emp_account_no', $value)
-                                ->where('emp_id', '!=', $request->emp_id)
-                                ->exists();
-                            if ($exists) {
-                                $fail('This account number is already associated with another employee.');
+                            if (!empty($value)) {
+                                $exists = DB::table('bank_employee')
+                                    ->where('emp_account_no', $value)
+                                    ->where('emp_id', '!=', $request->emp_id)
+                                    ->exists();
+                                if ($exists) {
+                                    $fail('This account number is already associated with another employee.');
+                                }
                             }
                         }
                     ],
                     'emp_ifsc_code' => [
-                        'required',
+                        'nullable',
                         'string',
-                        'size:11',                                  // IFSC codes are exactly 11 characters
-                        'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'  // Matches standard IFSC format
+                        'size:11',
+                        'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'
                     ],
                 ],
                 [
-                    'emp_id.required'            => 'Employee ID is required.',
-                    'emp_id.exists'              => 'The Employee ID does not exist.',
-                    'emp_bank_fullname.required' => 'Bank account full name is required.',
-                    'emp_bank_name.required'     => 'Bank name is required.',
-                    'emp_account_no.required'    => 'Account number is required.',
-                    'emp_account_no.regex'       => 'Account number must be between 9 and 20 digits.',
-                    'emp_ifsc_code.required'     => 'IFSC code is required.',
-                    'emp_ifsc_code.regex'        => 'IFSC code must be 11 characters long and follow the standard format (e.g., XXXX0YYYYYY).',
+                    'emp_id.required'      => 'Employee ID is required.',
+                    'emp_id.exists'        => 'The Employee ID does not exist.',
+                    'emp_account_no.regex' => 'Account number must be between 9 and 20 digits.',
+                    'emp_ifsc_code.regex'  => 'IFSC code must be 11 characters long and follow the format XXXX0YYYYYY.',
                 ]
-
             );
 
-            if (!empty($request->input('emp_bank_fullname')) && !empty($request->input('emp_bank_name')) &&  !empty($request->input('emp_ifsc_code')) && !empty($request->input('emp_account_no'))) {
-                $emp_status = 1;  // bank details are present
-            } else {
-                $emp_status = 0;  // Either bank details is missing
-            }
             if ($validator->fails()) {
                 return response()->json(['msg' => $validator->errors()->all()], 422);
             }
 
+            // Determine status based on whether all fields are filled
+            $emp_status = (
+                $request->filled('emp_bank_fullname') &&
+                $request->filled('emp_bank_name') &&
+                $request->filled('emp_account_no') &&
+                $request->filled('emp_ifsc_code') &&
+                $request->filled('emp_branch')
+            ) ? 1 : 0;
 
             try {
                 $data = [
@@ -1104,8 +966,8 @@ class EmployeeController extends Controller
                     'updatedon'         => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'],
                     'updated_at'        => now(),
                 ];
-                $existingRecord = DB::table('bank_employee')->where('emp_id', $request->input('emp_id'))->first();
 
+                $existingRecord = DB::table('bank_employee')->where('emp_id', $request->input('emp_id'))->first();
 
                 if ($existingRecord) {
                     DB::table('bank_employee')->where('emp_id', $request->input('emp_id'))->update($data);
@@ -1113,14 +975,85 @@ class EmployeeController extends Controller
                 } else {
                     $data['created_at'] = now();
                     $data['addedon']    = Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'];
-
                     DB::table('bank_employee')->insert($data);
                     $msg = 'Bank details saved successfully.';
                 }
 
                 $msgclass = 'bg-success';
             } catch (\Exception $e) {
+                \Log::error('Error in saveBankDetails: ' . $e->getMessage());
+                $msg      = 'An unexpected error occurred. Please try again later.';
+                $msgclass = 'bg-danger';
+            }
+        } else {
+            $msg      = 'Invalid HTTP request.';
+            $msgclass = 'bg-danger';
+        }
 
+        return response()->json([
+            'msg'    => $msg,
+            'msgsuc' => $msgclass,
+        ]);
+    }
+
+    // Route: save-pfesic-details -> employee.save.pfesic
+    public function savePFESICDetails(Request $request)
+    {
+        $msg      = '';
+        $msgclass = '';
+
+        if ($request->ajax() && $request->isMethod('post')) {
+            $validator = Validator::make(
+                $request->all(),
+                [
+                    'emp_id'         => 'required|exists:master_employee,emp_id',
+                    'emp_PF_no'      => 'nullable|string|max:50',
+                    'emp_ESIC_no'    => 'nullable|string|max:50',
+                    'emp_esic_State' => 'nullable|string|max:255',
+                ],
+                [
+                    'emp_id.required' => 'Employee ID is required.',
+                    'emp_id.exists'   => 'The Employee ID does not exist.',
+                ]
+            );
+
+            if ($validator->fails()) {
+                return response()->json(['msg' => $validator->errors()->all()], 422);
+            }
+
+            // Check if all required fields are filled
+            $emp_status = (
+                $request->filled('emp_PF_no') ||
+                $request->filled('emp_ESIC_no') &&
+                $request->filled('emp_esic_State')
+            ) ? 1 : 0;
+
+            try {
+                $data = [
+                    'emp_id'         => $request->input('emp_id'),
+                    'emp_PF_no'      => $request->input('emp_PF_no'),
+                    'emp_ESIC_no'    => $request->input('emp_ESIC_no'),
+                    'emp_esic_State' => $request->input('emp_esic_State'),
+                    'emp_pf_status'  => $emp_status,
+                    'updatedon'      => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'],
+                    'updated_at'     => now(),
+                ];
+
+                $existingRecord = DB::table('pf_esic_employee')->where('emp_id', $request->input('emp_id'))->first();
+
+                if ($existingRecord) {
+                    DB::table('pf_esic_employee')->where('emp_id', $request->input('emp_id'))->update($data);
+                    $msg = 'PF/ESIC details updated successfully.';
+                } else {
+                    $data['created_at'] = now();
+                    $data['addedon']    = Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'];
+                    DB::table('pf_esic_employee')->insert($data);
+                    $msg = 'PF/ESIC details saved successfully.';
+                }
+
+                $msgclass = 'bg-success';
+            } catch (\Exception $e) {
+                Log::error('Error in savePFESICDetails: ' . $e->getMessage());
                 $msg      = 'An unexpected error occurred. Please try again later.';
                 $msgclass = 'bg-danger';
             }
@@ -1233,75 +1166,7 @@ class EmployeeController extends Controller
         }
     }
 
-    // Route: save-pfesic-details -> employee.save.pfesic
-    public function savePFESICDetails(Request $request)
-    {
-        $msg      = '';
-        $msgclass = '';
 
-        if ($request->ajax() && $request->isMethod('post')) {
-            $validator = Validator::make(
-                $request->all(),
-                [
-                    'emp_id'         => 'required|exists:master_employee,emp_id',
-                    'emp_PF_no'      => 'nullable|string|max:50',
-                    'emp_ESIC_no'    => 'nullable|string|max:50',
-                    'emp_esic_State' => 'nullable|string|max:255',
-                ],
-                [
-                    'emp_id.required' => 'Employee ID is required.',
-                    'emp_id.exists'   => 'The Employee ID does not exist.',
-                ]
-            );
-            if (!empty($request->input('emp_PF_no')) || !empty($request->input('emp_ESIC_no'))) {
-                $emp_status = 1;  // Both PF and ESIC numbers are present
-            } else {
-                $emp_status = 0;  // Either PF or ESIC number is missing
-            }
-
-            if ($validator->fails()) {
-                return response()->json(['msg' => $validator->errors()->all()], 422);
-            }
-
-            try {
-                $data = [
-                    'emp_id'         => $request->input('emp_id'),
-                    'emp_PF_no'      => $request->input('emp_PF_no'),
-                    'emp_ESIC_no'    => $request->input('emp_ESIC_no'),
-                    'emp_esic_State' => $request->input('emp_esic_State'),
-                    'emp_pf_status'  => $emp_status,
-                    'updatedon'      => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'],
-                    'updated_at'     => now(),
-                ];
-
-                $existingRecord = DB::table('pf_esic_employee')->where('emp_id', $request->input('emp_id'))->first();
-
-                if ($existingRecord) {
-                    DB::table('pf_esic_employee')->where('emp_id', $request->input('emp_id'))->update($data);
-                    $msg = 'PF/ESIC details updated successfully.';
-                } else {
-                    $data['created_at'] = now();
-                    $data['addedon']    = Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['Type'];
-                    DB::table('pf_esic_employee')->insert($data);
-                    $msg = 'PF/ESIC details saved successfully.';
-                }
-
-                $msgclass = 'bg-success';
-            } catch (\Exception $e) {
-                Log::error('Error in savePFESICDetails: ' . $e->getMessage());
-                $msg      = 'An unexpected error occurred. Please try again later.';
-                $msgclass = 'bg-danger';
-            }
-        } else {
-            $msg      = 'Invalid HTTP request.';
-            $msgclass = 'bg-danger';
-        }
-
-        return response()->json([
-            'msg'    => $msg,
-            'msgsuc' => $msgclass,
-        ]);
-    }
 
     public function employee_view_salary_slip_download(Request $req)
     {

@@ -19,7 +19,7 @@
 
                                     @if (HasPermission('UP0') == 'true')
                                     <!-- upload Employee Button -->
-                                    <a class="btn btn-dark " href="{{ route('emp.view.emp.exl.data') }}">+ Upload Bulk Employee Data</a>
+                                    <a class="btn btn-dark " href="{{ route('emp.view.emp.exl.data') }}">+ Upload Employee Excel Data</a>
                                     @endif
 
                                 </div>

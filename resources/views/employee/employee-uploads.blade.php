@@ -6,12 +6,21 @@
         <div class="row mt-4 g-4">
             <!-- SUMMARY -->
             @if(session('upload_summary'))
+            @php
+            $summary = session('upload_summary');
+            preg_match('/Inserted: (\d+)/', $summary, $insertedMatch);
+            preg_match('/Skipped: (\d+)/', $summary, $skippedMatch);
+            $inserted = $insertedMatch[1] ?? 0;
+            $skipped = $skippedMatch[1] ?? 0;
+            @endphp
             <div class="col-12">
                 <div class="alert alert-info">
-                    {{ session('upload_summary') }}
+                    ✅ <span class="text-success fw-bold">Inserted: {{ $inserted }}</span> &nbsp; | &nbsp;
+                    ⚠️ <span class="text-danger fw-bold">Skipped: {{ $skipped }}</span>
                 </div>
             </div>
             @endif
+
             <!-- BASIC EMPLOYEE UPLOAD -->
             <div class="col-lg-4">
                 <div class="card shadow-sm rounded-4 border-0">
