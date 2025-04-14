@@ -37,17 +37,14 @@ class EmployeeController extends Controller
 
     public function importExcel(Request $request)
     {
-        // Increase max execution time to prevent timeout
-        ini_set('max_execution_time', 180);
+        ini_set('max_execution_time', 180); // Extend timeout for large files
 
-        // Step 1: Validate input
         $request->validate([
             'employee_excel' => 'required|file|mimes:xlsx,xls',
             'emp_company_id' => 'required|integer',
         ]);
 
         try {
-            // Step 2: Read Excel
             $file        = $request->file('employee_excel');
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file);
             $sheet       = $spreadsheet->getActiveSheet();
@@ -56,7 +53,6 @@ class EmployeeController extends Controller
             $inserted = [];
             $skipped  = 0;
 
-            // Step 3: DB transaction for safety
             DB::beginTransaction();
 
             foreach (array_slice($rows, 1) as $row) {
@@ -64,21 +60,17 @@ class EmployeeController extends Controller
                 $mobile   = trim($row[1] ?? '');
                 $aadhar   = trim($row[2] ?? '');
 
-                // Skip invalid or empty rows
                 if (!$fullname || !$mobile || !$aadhar) continue;
 
-                // Avoid duplicate Aadhaar
                 $exists = DB::table('master_employee')->where('emp_aadhar', $aadhar)->exists();
                 if ($exists) {
                     $skipped++;
                     continue;
                 }
 
-                // Generate emp_code
                 $emp_code = $this->generateEmpCode();
 
-                // Insert new employee
-                $emp_id = DB::table('master_employee')->insertGetId([
+                DB::table('master_employee')->insert([
                     'full_name'      => $fullname,
                     'emp_mobile'     => $mobile,
                     'emp_aadhar'     => $aadhar,
@@ -87,41 +79,39 @@ class EmployeeController extends Controller
                     'emp_status'     => 1,
                     'created_at'     => now(),
                     'updated_at'     => now(),
+                    'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                 ]);
 
                 $inserted[] = [
-                    'emp_id'    => $emp_id,
-                    'full_name' => $fullname,
+                    'emp_code'   => $emp_code,
+                    'full_name'  => $fullname,
                 ];
             }
 
             DB::commit();
 
-            // Step 4: Export inserted records to Excel
-            $export = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-            $sheet  = $export->getActiveSheet();
-            $sheet->setCellValue('A1', 'Employee ID');
-            $sheet->setCellValue('B1', 'Full Name');
+            // Create export Excel with emp_code and name
+            $exportSheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $exportSheet->getActiveSheet();
+            $sheet->setCellValue('A1', 'Employee Code');
+            $sheet->setCellValue('B1', 'Employee Name');
 
-            $row = 2;
+            $rowIndex = 2;
             foreach ($inserted as $emp) {
-                $sheet->setCellValue("A{$row}", $emp['emp_id']);
-                $sheet->setCellValue("B{$row}", $emp['full_name']);
-                $row++;
+                $sheet->setCellValue("A{$rowIndex}", $emp['emp_code']);
+                $sheet->setCellValue("B{$rowIndex}", $emp['full_name']);
+                $rowIndex++;
             }
 
             $filename     = 'uploaded_employees_' . now()->format('YmdHis') . '.xlsx';
             $relativePath = "excel_exports/{$filename}";
             $absolutePath = storage_path("app/{$relativePath}");
 
-            // Ensure folder exists
             \Illuminate\Support\Facades\File::ensureDirectoryExists(dirname($absolutePath));
 
-            // Save file
-            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($export);
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($exportSheet);
             $writer->save($absolutePath);
 
-            // Step 5: Redirect with session data
             return redirect()->back()->with([
                 'upload_inserted'   => count($inserted),
                 'upload_skipped'    => $skipped,
@@ -129,10 +119,11 @@ class EmployeeController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            report($e);  // optional: log the error
+            report($e);
             return redirect()->back()->with('error', 'Something went wrong while importing employees. Please try again.');
         }
     }
+
 
 
     // List Employees
@@ -173,7 +164,7 @@ class EmployeeController extends Controller
     {
         $request->validate([
             'excel_file'  => 'required|mimes:xlsx,xls',
-            'upload_type' => 'required|in:basic,bank,pfesic,document',
+            'upload_type' => 'required|in:basic,bank,pfesic',
         ]);
 
         $type = $request->upload_type;
@@ -186,12 +177,16 @@ class EmployeeController extends Controller
         $skipped  = 0;
 
         foreach (array_slice($rows, 1) as $row) {
-            $emp_id = trim($row[0] ?? '');
+            $emp_code = trim($row[0] ?? '');
 
-            if (!$emp_id || !DB::table('master_employee')->where('emp_id', $emp_id)->exists()) {
+            $employee = DB::table('master_employee')->where('emp_code', $emp_code)->first();
+
+            if (!$employee) {
                 $skipped++;
                 continue;
             }
+
+            $emp_id = $employee->emp_id;
 
             switch ($type) {
                 case 'basic':
@@ -224,6 +219,7 @@ class EmployeeController extends Controller
                         'second_child_name'          => $row[24] ?? null,
                         'second_child_dob'           => $row[25] ?? null,
                         'updated_at'                 => now(),
+                        'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                     ];
 
                     if ($exists) {
@@ -248,6 +244,7 @@ class EmployeeController extends Controller
                         'emp_branch'        => $row[5] ?? null,
                         'emp_bank_status'   => $row[6] ?? 1,
                         'updated_at'        => now(),
+                        'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                     ];
 
                     if ($exists) {
@@ -268,8 +265,9 @@ class EmployeeController extends Controller
                         'emp_PF_no'      => $row[1] ?? null,
                         'emp_ESIC_no'    => $row[2] ?? null,
                         'emp_esic_State' => $row[3] ?? null,
-                        'emp_pf_status'  => $row[4] ?? 1,
+                        'emp_pf_status'  => 1,
                         'updated_at'     => now(),
+                        'addedon'        => Session::get('UserData')['Type'] == 'ALL' ? 0 : Session::get('UserData')['UID'],
                     ];
 
                     if ($exists) {
@@ -282,23 +280,12 @@ class EmployeeController extends Controller
                         $inserted++;
                     }
                     break;
-
-                case 'document':
-                    // Document: no update, only insert
-                    DB::table('document_employee')->insert([
-                        'emp_id'       => $emp_id,
-                        'emp_doc_type' => $row[1] ?? null,
-                        'emp_file'     => $row[2] ?? null,   // assuming file name or path
-                        'created_at'   => now(),
-                        'updated_at'   => now()
-                    ]);
-                    $inserted++;
-                    break;
             }
         }
 
         return back()->with('upload_summary', "Inserted: $inserted, Skipped: $skipped");
     }
+
 
 
     // Add/Edit Employee Page
@@ -1063,8 +1050,17 @@ class EmployeeController extends Controller
                     'emp_account_no'    => [
                         'required',
                         'string',
-                        'max:20',                      // Account numbers typically have a maximum of 20 characters
-                        'regex:/^\d{9,20}$/'  // Only allows digits, with a length between 9 and 20
+                        'max:20',
+                        'regex:/^\d{9,20}$/',
+                        function ($attribute, $value, $fail) use ($request) {
+                            $exists = DB::table('bank_employee')
+                                ->where('emp_account_no', $value)
+                                ->where('emp_id', '!=', $request->emp_id)
+                                ->exists();
+                            if ($exists) {
+                                $fail('This account number is already associated with another employee.');
+                            }
+                        }
                     ],
                     'emp_ifsc_code' => [
                         'required',
@@ -1248,22 +1244,16 @@ class EmployeeController extends Controller
                 $request->all(),
                 [
                     'emp_id'         => 'required|exists:master_employee,emp_id',
-                    'emp_PF_no'      => 'required|string|max:50',
-                    'emp_ESIC_no'    => 'required|string|max:50',
-                    'emp_esic_State' => 'required|string|max:255',
-
+                    'emp_PF_no'      => 'nullable|string|max:50',
+                    'emp_ESIC_no'    => 'nullable|string|max:50',
+                    'emp_esic_State' => 'nullable|string|max:255',
                 ],
                 [
-                    'emp_id.required'         => 'Employee ID is required.',
-                    'emp_id.exists'           => 'The Employee ID does not exist.',
-                    'emp_PF_no.required'      => 'PF number is required.',
-                    'emp_ESIC_no.required'    => 'ESIC number is required.',
-                    'emp_esic_State.required' => 'ESIC state is required.',
-
-
+                    'emp_id.required' => 'Employee ID is required.',
+                    'emp_id.exists'   => 'The Employee ID does not exist.',
                 ]
             );
-            if (!empty($request->input('emp_PF_no')) && !empty($request->input('emp_ESIC_no'))) {
+            if (!empty($request->input('emp_PF_no')) || !empty($request->input('emp_ESIC_no'))) {
                 $emp_status = 1;  // Both PF and ESIC numbers are present
             } else {
                 $emp_status = 0;  // Either PF or ESIC number is missing

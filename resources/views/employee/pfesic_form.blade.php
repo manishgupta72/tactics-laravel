@@ -5,31 +5,27 @@
         <div class="row">
             <!-- PF Number -->
             <div class="form-group col-md-6 mb-3">
-                <label for="emp_PF_no">PF Number <span class="text-danger">*</span></label>
+                <label for="emp_PF_no">PF Number </label>
                 <input type="text" class="form-control" id="emp_PF_no" name="emp_PF_no" placeholder="Enter PF Number" value="{{ $emp_pfesic_details->emp_PF_no ?? '' }}">
             </div>
 
             <!-- ESIC Number -->
             <div class="form-group col-md-6 mb-3">
-                <label for="emp_ESIC_no">ESIC Number <span class="text-danger">*</span></label>
+                <label for="emp_ESIC_no">ESIC Number </label>
                 <input type="text" class="form-control" id="emp_ESIC_no" name="emp_ESIC_no" placeholder="Enter ESIC Number" value="{{ $emp_pfesic_details->emp_ESIC_no ?? '' }}">
             </div>
         </div>
 
         <div class="row">
-            <!-- ESIC State -->
+            <!-- ESIC State as Text Input -->
             <div class="form-group col-md-6 mb-3">
-                <label for="comp_status" class="form-label">ESIC State <span class="text-danger">*</span></label><br>
-                <select class="form-control select2 w-100" id="emp_esic_State" name="emp_esic_State" style="width: 100%;">
-                    <option value="">Select State</option>
-                    @foreach (config('constant.STATES') as $key => $state)
-                    <option value="{{ $key }}" {{ isset($emp_pfesic_details->emp_esic_State) && $emp_pfesic_details->emp_esic_State == $key ? 'selected' : '' }}>
-                        {{ $state }}
-                    </option>
-                    @endforeach
-                </select>
+                <label for="emp_esic_State" class="form-label">ESIC State </label>
+                <input type="text" class="form-control" id="emp_esic_State" name="emp_esic_State"
+                    placeholder="Enter ESIC State"
+                    value="{{ isset($emp_pfesic_details->emp_esic_State) ? $emp_pfesic_details->emp_esic_State : '' }}">
             </div>
         </div>
+
 
 
         <!-- Save Button -->

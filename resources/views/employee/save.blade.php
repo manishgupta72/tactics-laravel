@@ -8,7 +8,7 @@
             <!-- LEFT: Individual Form -->
             <div class="col-lg-6">
                 <div class="card shadow-sm rounded-4 border-0">
-                    <div class="card-header bg-primary text-white rounded-top-4">
+                    <div class="card-header bg-primary text-white rounded-top-2">
                         <h5 class="mb-0">{{ isset($detail->emp_id) ? 'Edit Employee' : 'Add Employee' }}</h5>
                     </div>
                     <div class="card-body">
@@ -94,7 +94,7 @@
             <!-- RIGHT: Bulk Upload -->
             <div class="col-lg-6">
                 <div class="card shadow-sm rounded-4 border-0">
-                    <div class="card-header bg-primary text-white rounded-top-4 d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-primary text-white rounded-top-2 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Bulk Upload Employees</h5>
                         <a href="{{ asset('assets/employee.xlsx') }}" class="btn btn-danger btn-sm">Download Format</a>
                     </div>

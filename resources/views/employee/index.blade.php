@@ -11,18 +11,19 @@
 
                         <form id="EmployeeFrm">
                             <div class="row form-group p-4">
-                                <div class="col-lg-4 pb-0">
+                                <div class="col-lg-4 pb-0 d-flex justify-content-between align-items-center">
                                     @if (HasPermission('E1') == 'true')
                                     <!-- Add Employee Button -->
                                     <a class="btn btn-primary" href="{{ route('page.EmployeeController') }}">+ Add Employee</a>
                                     @endif
-                                </div>
-                                <div class="col-lg-4 pb-0 ">
+
                                     @if (HasPermission('UP0') == 'true')
                                     <!-- upload Employee Button -->
-                                    <a class="btn btn-dark" href="{{ route('emp.view.emp.exl.data') }}">+ Upload Employee Data</a>
+                                    <a class="btn btn-dark " href="{{ route('emp.view.emp.exl.data') }}">+ Upload Bulk Employee Data</a>
                                     @endif
+
                                 </div>
+
                             </div>
                         </form>
                         <hr>
